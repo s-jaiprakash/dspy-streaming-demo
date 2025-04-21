@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Streaming Example - Structured Output (Dict Response - Chunked)</title>
+    <style>
+        .validation-section { margin-bottom: 20px; border: 1px solid #ccc; padding: 10px; }
+        .section-title { font-weight: bold; margin-bottom: 10px; }
+        .field-item { margin-bottom: 5px; }
+        .field-label { font-weight: bold; display: inline-block; width: 150px; }
+    </style>
+</head>
+<body>
+    <h1>Pharma Problem Statement Validation</h1>
+    <textarea id="problemInput" placeholder="Enter the Pharma Problem Statement" rows="5" cols="80"></textarea><br><br>
+    <button onclick="askQuestion()">Validate</button>
+    <div id="streamOutput"></div>
+
+    <script>
+        function askQuestion() {
+            const problemStatement = document.getElementById("problemInput").value;
+            const outputDiv = document.getElementById("streamOutput");
+            outputDiv.innerHTML = ""; // Clear previous output
+            let accumulatedData = ''; // To accumulate streamed data
+
+            const eventSource = new EventSource('/ask', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ problem_statement: problemStatement })
+            });
+
+            eventSource.onmessage = function(event) {
+                if (event.data == "[DONE]") {
+                    eventSource.close();
+                    console.log("DONE signal received, processing accumulated data:", accumulatedData); // Log accumulated data before parsing
+                    try {
+                        const fullMessage = JSON.parse(accumulatedData); // Parse accumulated data
+                        console.log("Parsed full message:", fullMessage); // Log parsed full message
+                        if (fullMessage.prediction) {
+                            console.log("Prediction received (from full message):", fullMessage.prediction);
+                            displayValidationSummary(fullMessage.prediction.validation_summary);
+                        } else {
+                            console.warn("No 'prediction' field in parsed full message:", fullMessage); // Warn if no prediction
+                            outputDiv.innerHTML += "<p>Warning: No prediction data received in final response.</p>";
+                        }
+                    } catch (e) {
+                        console.error("Error parsing accumulated JSON:", e);
+                        outputDiv.innerHTML += "<p>Error processing final streaming data.</p>";
+                    }
+                    return; // Important: Exit after processing DONE
+                }
+
+                // Accumulate chunk data
+                console.log("Chunk data received:", event.data); // Log each chunk data
+                accumulatedData += event.data; // Append chunk to accumulated data
+                console.log("Accumulated data so far:", accumulatedData); // Log accumulated data at each chunk
+            };
+
+            eventSource.onerror = function(error) {
+                console.error("EventSource failed:", error);
+                eventSource.close();
+                outputDiv.innerHTML = "<p>EventSource Error. See console.</p>";
+            };
+        }
+
+        function displayValidationSummary(validationSummary) {
+            const outputDiv = document.getElementById("streamOutput");
+            outputDiv.innerHTML = ""; // Clear previous output for full summary
+
+            console.log("Displaying Validation Summary:", validationSummary); // Log validationSummary in displayValidationSummary
+
+            const summaryDiv = document.createElement('div');
+
+            // Personas Section
+            const personasSection = createValidationSection("Personas", validationSummary.Personas);
+            summaryDiv.appendChild(personasSection);
+
+            // Urgency Section
+            const urgencySection = createValidationSection("Urgency", validationSummary.Urgency);
+            summaryDiv.appendChild(urgencySection);
+
+            // Current Process Section
+            const processSection = createValidationSection("Current Process", validationSummary.Current_Process);
+            summaryDiv.appendChild(processSection);
+
+            // Current Man-Hours Section
+            const manHoursSection = createValidationSection("Current Man-Hours", validationSummary.Current_Man_Hours);
+            summaryDiv.appendChild(manHoursSection);
+
+            outputDiv.appendChild(summaryDiv);
+        }
+
+        function createValidationSection(title, validationData) {
+            const sectionDiv = document.createElement('div');
+            sectionDiv.className = 'validation-section';
+
+            console.log("Creating Validation Section for:", title, "with data:", validationData); // Log title and validationData in createValidationSection
+
+            const titleElement = document.createElement('h3');
+            titleElement.className = 'section-title';
+            titleElement.textContent = title;
+            sectionDiv.appendChild(titleElement);
+
+            sectionDiv.appendChild(createFieldItem("Is Mentioned:", validationData.is_mentioned)); // Access as dictionary key
+            sectionDiv.appendChild(createFieldItem("Justification:", validationData.justification)); // Access as dictionary key
+            sectionDiv.appendChild(createFieldItem("Answers:", validationData.answers)); // Access as dictionary key
+
+            return sectionDiv;
+        }
+
+        function createFieldItem(label, value) {
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'field-item';
+
+            const labelSpan = document.createElement('span');
+            labelSpan.className = 'field-label';
+            labelSpan.textContent = label;
+            itemDiv.appendChild(labelSpan);
+
+            const valueSpan = document.createElement('span');
+            valueSpan.textContent = value || "N/A"; // Handle null/undefined values
+            itemDiv.appendChild(valueSpan);
+
+            return itemDiv;
+        }
+
+
+    </script>
+</body>
+</html>

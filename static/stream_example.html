@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Streaming Example</title>
+</head>
+<body>
+    <h1>Ask a Question</h1>
+    <input type="text" id="questionInput" placeholder="Enter your question">
+    <textarea id="contextInput" placeholder="Enter context (optional)"></textarea>
+    <button onclick="askQuestion()">Ask</button>
+    <div id="streamOutput"></div>
+
+    <script>
+        function askQuestion() {
+            const question = document.getElementById("questionInput").value;
+            const context = document.getElementById("contextInput").value;
+            const outputDiv = document.getElementById("streamOutput");
+            outputDiv.innerHTML = ""; // Clear previous output
+
+            // 1. Send POST request to /ask with question and context
+            fetch('/ask', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ question: question, context: context }) // Send context in body
+            })
+            .then(response => response.json()) // Expect JSON response with stream URL
+            .then(data => {
+                const streamUrl = data.stream_url; // Get stream URL from response
+                // 2. Create EventSource to the stream URL (GET)
+                const eventSource = new EventSource(streamUrl); // Connect to GET /stream/{stream_id}
+
+                eventSource.onmessage = function(event) {
+                    if (event.data == "[DONE]") {
+                        eventSource.close();
+                        return;
+                    }
+                    const message = JSON.parse(event.data);
+                    if (message.prediction) {
+                        outputDiv.innerHTML += "<p>Prediction: " + message.prediction.a + "</p>";
+                    } else if (message.chunk) {
+                        try {
+                            const chunkData = JSON.parse(message.chunk.choices[0].delta.content);
+                            if (chunkData) {
+                                outputDiv.innerHTML += chunkData;
+                            }
+                        } catch (e) {
+                            if (message.chunk.choices[0].delta.content) {
+                                outputDiv.innerHTML += message.chunk.choices[0].delta.content;
+                            }
+                        }
+                    }
+                };
+
+                eventSource.onerror = function(error) {
+                    console.error("EventSource failed:", error);
+                    eventSource.close();
+                };
+            })
+            .catch(error => {
+                console.error("Error initiating question processing:", error);
+                outputDiv.innerHTML = "<p>Error initiating question. See console.</p>";
+            });
+        }
+    </script>
+</body>
+</html>

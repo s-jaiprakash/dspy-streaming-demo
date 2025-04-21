@@ -1,0 +1,16 @@
+[project]
+name = "dspy-streaming"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "dspy>=2.6.18",
+    "fastapi>=0.115.12",
+    "uvicorn>=0.34.2",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.11.6",
+]
